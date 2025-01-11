@@ -1,5 +1,4 @@
 const chai = require("chai");
-const fetch = require("node-fetch");
 
 describe("Pyodide", () => {
   it("runPython", async () => {
@@ -10,20 +9,18 @@ describe("Pyodide", () => {
     chai.assert.equal(result, 2);
   });
   describe("micropip", () => {
-    const globalFetch = globalThis.fetch;
-
     before(async () => {
       const factory = async () => {
-        globalThis.fetch = fetch;
-        await pyodide.loadPackage(["micropip"]);
+        return pyodide.loadPackage(["micropip"]);
       };
-      await chai.assert.isFulfilled(page.evaluate(factory));
-    });
-    after(async () => {
-      const factory = async (globalFetch) => {
-        globalThis.fetch = globalFetch || fetch;
-      };
-      await chai.assert.isFulfilled(page.evaluate(factory, globalFetch));
+      const installedPackages = await chai.assert.isFulfilled(
+        page.evaluate(factory),
+      );
+      chai.assert.isNotEmpty(installedPackages);
+      chai.assert.include(
+        installedPackages.map((pkg) => pkg.name),
+        "micropip",
+      );
     });
 
     it("install", async () => {

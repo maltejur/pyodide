@@ -4,45 +4,7 @@
 
 ## How can I load external files in Pyodide?
 
-If you are using Pyodide in the browser, you should download external files and
-save them to the virtual file system. The recommended way to do this is to zip
-the files and unpack them into the file system with
-{any}`pyodide.unpackArchive`:
-
-```pyodide
-let zipResponse = await fetch("myfiles.zip");
-let zipBinary = await zipResponse.arrayBuffer();
-pyodide.unpackArchive(zipBinary, "zip");
-```
-
-You can also download the files from Python using {any}`pyodide.http.pyfetch`,
-which is a convenient wrapper of JavaScript `fetch`:
-
-```pyodide
-await pyodide.runPythonAsync(`
-  from pyodide.http import pyfetch
-  response = await pyfetch("https://some_url/myfiles.zip")
-  await response.unpack_archive()
-`)
-```
-
-If you are working in Node.js, you can mount a native folder into the file
-system as follows:
-
-```pyodide
-FS.mkdir("/local_directory");
-FS.mount(NODEFS, { root: "some/local/filepath" }, "/local_directory");
-```
-
-Then you can access the mounted folder from Python via the `/local_directory`
-mount.
-
-```{admonition} Why can't I just use urllib or requests?
-:class: warning
-
-We currently can’t use such packages since sockets are not available in Pyodide.
-See {ref}`http-client-limit` for more information.
-```
+See {ref}`accessing_files_quickref`.
 
 ## Why can't I load files from the local file system?
 
@@ -51,14 +13,15 @@ For security reasons JavaScript in the browser is not allowed to load local data
 You will run into Network Errors, due to the [Same Origin Policy](https://en.wikipedia.org/wiki/Same-origin_policy).
 There is a
 [File System API](https://wicg.github.io/file-system-access/) supported in Chrome
-but not in Firefox or Safari.
+but not in Firefox or Safari. See {ref}`nativefs-api` for experimental local file system
+support.
 
 For development purposes, you can serve your files with a
 [web server](https://developer.mozilla.org/en-US/docs/Learn/Common_questions/set_up_a_local_testing_server).
 
 ## How can I execute code in a custom namespace?
 
-The second argument to {any}`pyodide.runPython` is an options object which may
+The second argument to {js:func}`pyodide.runPython` is an options object which may
 include a `globals` element which is a namespace for code to read from and write
 to. The provided namespace must be a Python dictionary.
 
@@ -120,12 +83,10 @@ if "PYODIDE" in os.environ:
     # building for Pyodide
 ```
 
-We used to use the environment variable `PYODIDE_BASE_URL` for this purpose,
-but this usage is deprecated.
-
 ## How do I create custom Python packages from JavaScript?
 
-Put a collection of functions into a JavaScript object and use {any}`pyodide.registerJsModule`:
+Put a collection of functions into a JavaScript object and use
+{js:func}`pyodide.registerJsModule`:
 JavaScript:
 
 ```javascript
@@ -195,11 +156,11 @@ document.body.addEventListener('click', f)
 
 Now every time you click, an error will be raised (see {ref}`call-js-from-py`).
 
-To do this correctly use {func}`pyodide.create_proxy` as follows:
+To do this correctly use {py:func}`~pyodide.ffi.create_proxy` as follows:
 
 ```py
 from js import document
-from pyodide import create_proxy
+from pyodide.ffi import create_proxy
 def f(*args):
     document.querySelector("h1").innerHTML += "(>.<)"
 
@@ -224,7 +185,7 @@ resp = await js.fetch('/someurl', {
 })
 ```
 
-The `fetch` API ignores the options that we attempted to provide. You can do
+The {js:func}`fetch` API ignores the options that we attempted to provide. You can do
 this correctly in one of two ways:
 
 ```py
@@ -256,12 +217,14 @@ resp = await js.fetch('example.com/some_api', to_js({
 ## How can I control the behavior of stdin / stdout / stderr?
 
 If you wish to override `stdin`, `stdout` or `stderr` for the entire Pyodide
-runtime, you can pass options to {any}`loadPyodide <globalThis.loadPyodide>`: If
+runtime, you can pass options to {js:func}`~globalThis.loadPyodide`: If
 you say
 
-```
+```js
 loadPyodide({
-  stdin: stdin_func, stdout: stdout_func, stderr: stderr_func
+  stdin: stdin_func,
+  stdout: stdout_func,
+  stderr: stderr_func,
 });
 ```
 
@@ -270,13 +233,14 @@ then every time a line is written to `stdout` (resp. `stderr`), `stdout_func`
 `stdin_func` will be called with zero arguments. It is expected to return a
 string which is interpreted as a line of text.
 
+You can also use the functions {js:func}`pyodide.setStdin`,
+{js:func}`pyodide.setStdout`, and {js:func}`pyodide.setStderr`.
+
 Temporary redirection works much the same as it does in native Python: you can
-overwrite `sys.stdin`, `sys.stdout`, and `sys.stderr` respectively. If you want
-to do it temporarily, it's recommended to use
-[`contextlib.redirect_stdout`](https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stdout)
-and
-[`contextlib.redirect_stderr`](https://docs.python.org/3/library/contextlib.html#contextlib.redirect_stderr).
-There is no `contextlib.redirect_stdin` but it is easy to make your own as
+overwrite {py:data}`sys.stdin`, {py:data}`sys.stdout`, and {py:data}`sys.stderr`
+respectively. If you want to do it temporarily, it's recommended to use
+{py:func}`contextlib.redirect_stdout` and {py:func}`contextlib.redirect_stderr`
+There is no `contextlib.redirect_stdin()` but it is easy to make your own as
 follows:
 
 ```py
@@ -334,15 +298,16 @@ This can happen for two reasons,
    from the corresponding URL.
 2. or the package has binary extensions (e.g. C, Fortran or Rust), in which
    case it needs to be packaged in Pyodide. Please open [an
-   issue](https://github.com/pyodide/pyodide/issues) after checking than an
-   issue for this opackage doesn't exist already. Then follow
+   issue](https://github.com/pyodide/pyodide/issues) after checking that an
+   issue for this package doesn't exist already. Then follow
    {ref}`new-packages`.
 
-## How can I change the behavior of {any}`runPython <pyodide.runPython>` and {any}`runPythonAsync <pyodide.runPythonAsync>`?
+## How can I change the behavior of {js:func}`~pyodide.runPython` and {js:func}`~pyodide.runPythonAsync`?
 
 You can directly call Python functions from JavaScript. For most purposes it
 makes sense to make your own Python function as an entrypoint and call that
-instead of redefining `runPython`. The definitions of {any}`runPython <pyodide.runPython>` and {any}`runPythonAsync <pyodide.runPythonAsync>` are very
+instead of redefining `runPython`. The definitions of
+{js:func}`~pyodide.runPython` and {js:func}`~pyodide.runPythonAsync` are very
 simple:
 
 ```javascript
@@ -357,15 +322,15 @@ async function runPythonAsync(code) {
 }
 ```
 
-To make your own version of {any}`runPython <pyodide.runPython>` you could do:
+To make your own version of {js:func}`~pyodide.runPython` you could do:
 
 ```pyodide
 const my_eval_code = pyodide.runPython(`
   from pyodide.code import eval_code
-  def my_eval_code(code, ns):
+  def my_eval_code(code, globals=None, locals=None):
     extra_info = None
-    result = eval_code(code, ns)
-    return ns["extra_info"], result
+    result = eval_code(code, globals, locals)
+    return globals["extra_info"], result
   my_eval_code
 `)
 
@@ -375,10 +340,10 @@ function myRunPython(code){
 ```
 
 Then `myRunPython("2+7")` returns `[None, 9]` and
-`myRunPython("extra_info='hello' ; 2 + 2")` returns `['hello', 4]`.
-If you want to change which packages {any}`pyodide.loadPackagesFromImports` loads, you can
-monkey patch {any}`pyodide.code.find_imports` which takes `code` as an argument
-and returns a list of packages imported.
+`myRunPython("extra_info='hello' ; 2 + 2")` returns `['hello', 4]`. If you want
+to change which packages {js:func}`pyodide.loadPackagesFromImports` loads, you
+can monkey patch {py:func}`pyodide.code.find_imports` which takes `code` as an
+argument and returns a list of packages imported.
 
 ## Why can't I import a file I just wrote to the file system?
 
@@ -395,7 +360,8 @@ from mymodule import hello # may raise "ModuleNotFoundError: No module named 'my
 hello()
 ```
 
-If you see this error, call `importlib.invalidate_caches()` before importing the module:
+If you see this error, call {py:func}`importlib.invalidate_caches` before
+importing the module:
 
 ```py
 import importlib
@@ -408,4 +374,142 @@ def hello():
 importlib.invalidate_caches() # Make sure Python notices the new .py file
 from mymodule import hello
 hello()
+```
+
+## Why changes made to IndexedDB don't persist?
+
+Unlike other filesystems, IndexedDB (pyodide.FS.filesystem.IDBFS) is an asynchronous filesystem.
+This is because browsers offer only asynchronous interfaces for IndexedDB.
+So in order to persist changes, you have to call
+[`pyodide.FS.syncfs()`](https://emscripten.org/docs/api_reference/Filesystem-API.html#FS.syncfs).
+See [Emscripten File System API](https://emscripten.org/docs/api_reference/Filesystem-API.html#persistent-data)
+for more details.
+
+## How can I access JavaScript objects/attributes in Python if their names are Python keywords?
+
+Some JavaScript objects may have names or attributes which are also [Python Keywords](https://docs.python.org/3/reference/lexical_analysis.html#keywords), making them difficult to interact with when importing them into Python. For example, all three of the following uses of `runPython` will throw a SyntaxError:
+
+```pyodide
+//The built-in method Array.from() overlaps with Python's "from"
+pyodide.runPython(`from js import Array; print(Array.from([1,2,3]))`);
+
+//"global" is a valid attribute name in JS, but a reserved keyword in Python
+people = {global: "lots and lots"};
+pyodide.runPython(`from js import people; print(people.global)`);
+
+//"lambda" is a valid object name in JS, but a reserved keyword in Python
+lambda = (x) => {return x + 1};
+pyodide.runPython(`from js import lambda; print(lambda(1))`);
+```
+
+If you try to access a Python reserved word followed by one or more underscores
+on a `JsProxy`, Pyodide will remove a single underscore:
+
+```pyodide
+pyodide.runPython(`
+    from js import Array
+    print(Array.from_([1,2,3]))
+`);
+```
+
+If you meant to access the keyword with an underscore at the end, you'll have to
+add an extra one:
+
+```pyodide
+globalThis.lambda = 7;
+globalThis.lambda_ = 8;
+pyodide.runPython(`
+    from js import lambda_, lambda__
+    print(lambda_, lambda__) # 7, 8
+`);
+```
+
+Another example:
+
+```pyodide
+people = {global: "lots and lots"};
+pyodide.runPython(`
+    from js import people
+    # the dir contains global_ but not global:
+    assert "global_" in dir(people)
+    assert "global" not in dir(people)
+    people.global_ = 'even more'
+    print(people.global_)
+`);
+```
+
+You can also use `getattr`, `setattr`, and `delattr` to access the attribute:
+
+```pyodide
+pyodide.runPython(`
+    from js import Array
+    fromFunc = getattr(Array, 'from')
+    print(fromFunc([1,2,3]))
+`);
+
+people = {global: "lots and lots"};
+pyodide.runPython(`
+    from js import people
+    setattr(people, 'global', 'even more')
+    print(getattr(people, 'global'))
+`);
+```
+
+For JavaScript globals whose names are keywords, one can similarly use
+{py:func}`getattr` on the `js` module itself:
+
+```pyodide
+globalThis.lambda = 7;
+globalThis.lambda_ = 8;
+pyodide.runPython(`
+    import js
+    js_lambda = getattr(js, 'lambda')
+    js_lambda_ = getattr(js, 'lambda_')
+    js_lambda__ = getattr(js, 'lambda__')
+    print(js_lambda, js_lambda_, js_lambda__) # 7, 7, 8
+`);
+```
+
+## Can I use threading/multiprocessing/subprocess?
+
+No, fork and pthreads do not work in Pyodide (see more [here](https://pyodide.org/en/stable/usage/wasm-constraints.html)).
+Attempts to use `threading`, `multiprocessing`, or `subprocess` will raise a `RuntimeError`.
+You may be able to work around this by setting the number of threads to 1:
+
+```py
+def _can_start_thread() -> bool:
+    if sys.platform == "emscripten":
+        return sys._emscripten_info.pthreads
+    return platform.machine() not in ("wasm32", "wasm64")
+
+can_start_thread = _can_start_thread()
+
+if not can_start_thread:
+  n_threads = 1
+```
+
+You can still import the packages and use the general info API, but you cannot
+start any asynchronous work without receiving a `RuntimeError`.
+
+```pycon
+>>> import threading
+>>> current = threading.current_thread()
+>>> current.name
+'MainThread'
+>>> current.daemon
+False
+>>> current.is_alive()
+True
+>>> def target(nums):
+...     print(sum(nums))
+...
+>>> t = threading.Thread(target=target, args=([1, 2, 3], ))
+>>> t.run()
+6
+>>> t.start()
+Traceback (most recent call last):
+  File "<console>", line 1, in <module>
+  File "/lib/python312.zip/threading.py", line 994, in start
+    _start_new_thread(self._bootstrap, ())
+RuntimeError: can't start new thread
 ```

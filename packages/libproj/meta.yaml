@@ -1,21 +1,31 @@
 package:
   name: libproj
-  version: 8.2.1
-
+  version: 9.3.1
+  tag:
+    - library
+    - static_library
 source:
-  sha256: 76ed3d0c3a348a6693dfae535e5658bbfd47f71cb7ff7eb96d9f12f7e068b1cf
-  url: https://download.osgeo.org/proj/proj-8.2.1.tar.gz
+  sha256: b0f919cb9e1f42f803a3e616c2b63a78e4d81ecfaed80978d570d3a5e29d10bc
+  url: https://download.osgeo.org/proj/proj-9.3.1.tar.gz
+  patches:
+    - patches/0001-stod-empty-zero.patch
 
 requirements:
   host:
     - libtiff
+  executable:
+    - sqlite3
 
 build:
-  library: true
+  type: static_library
   script: |
-    mkdir -p build;
+    mkdir -p build
+
+    embuilder build zlib --pic
+    embuilder build sqlite3 --pic
+
     cd build \
-        && LDFLAGS="-s NODERAWFS=1 -sUSE_ZLIB=1 -sUSE_SQLITE3 -sFORCE_FILESYSTEM=1" emcmake cmake ../ \
+        && LDFLAGS="-s NODERAWFS=1 -sFORCE_FILESYSTEM=1" emcmake cmake ../ \
         -DCMAKE_INSTALL_PREFIX=$WASM_LIBRARY_DIR \
         -DCMAKE_BUILD_TYPE=Release \
         -DENABLE_CURL=OFF \
@@ -27,3 +37,6 @@ build:
         -DCMAKE_C_FLAGS="-fPIC" \
         -DCMAKE_CXX_FLAGS="-fPIC";
     emmake make -j ${PYODIDE_JOBS:-3} install;
+about:
+  home: https://proj.org/en/9.5/
+  license: MIT

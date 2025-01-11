@@ -1,14 +1,8 @@
-import base64
-import binascii
 import re
 import shutil
 import sys
-import sysconfig
-import tarfile
 from collections.abc import Iterable
 from importlib.machinery import EXTENSION_SUFFIXES
-from importlib.metadata import Distribution
-from importlib.metadata import distributions as importlib_distributions
 from pathlib import Path
 from site import getsitepackages
 from tempfile import NamedTemporaryFile
@@ -20,21 +14,32 @@ try:
 except ImportError:
     loadedPackages = None
 
-from ._core import IN_BROWSER, JsProxy, to_js
+from .common import install_files
+from .ffi import IN_BROWSER, JsArray, JsBuffer, to_js
 
 SITE_PACKAGES = Path(getsitepackages()[0])
 if sys.base_prefix == sys.prefix:
     # not in a virtualenv
-    STD_LIB = Path(sysconfig.get_path("stdlib"))
-    TARGETS = {"site": SITE_PACKAGES, "lib": STD_LIB, "dynlib": Path("/usr/lib")}
+    DSO_DIR = Path("/usr/lib")
 else:
     # in a virtualenv
-    # Better not put stuff into /usr/lib or /lib/python3.10! For now let's stick
-    # everyone into SITE_PACKAGES in this case
-    TARGETS = {"site": SITE_PACKAGES, "lib": SITE_PACKAGES, "dynlib": SITE_PACKAGES}
+    # Better not put stuff into /usr/lib or /lib/python3.10! Stick the stdlib
+    # into SITE_PACKAGES and dsos up two directories.
+    #
+    # e.g., SITE_PACKAGES = .venv/lib/python3.10/site_packages
+    # and   DSO_DIR       = .venv/lib/
+    DSO_DIR = SITE_PACKAGES.parents[1]
+TARGETS = {"site": SITE_PACKAGES, "dynlib": DSO_DIR}
 
 ZIP_TYPES = {".whl", ".zip"}
-TAR_TYPES = {".tar", ".gz", ".bz", ".gz", ".tgz", ".bz2", ".tbz2"}
+TAR_TYPES = {
+    ".bz",
+    ".bz2",
+    ".tbz2",
+    ".gz",
+    ".tgz",
+    ".tar",
+}
 EXTENSION_TAGS = [suffix.removesuffix(".so") for suffix in EXTENSION_SUFFIXES]
 # See PEP 3149. I think the situation has since been updated since PEP 3149 does
 # not talk about platform triples. But I could not find any newer pep discussing
@@ -46,6 +51,12 @@ PLATFORM_TAG_REGEX = re.compile(
     r"\.(cpython|pypy|jython)-[0-9]{2,}[a-z]*(-[a-z0-9_-]*)?"
 )
 SHAREDLIB_REGEX = re.compile(r"\.so(.\d+)*$")
+
+DIST_INFO_DIR_SUFFIX = ".dist-info"
+DATA_FILES_DIR_SUFFIX = ".data"
+# There are other "scheme"s available, but we are not interested in them.
+# https://github.com/pypa/pip/blob/81041f7f573e89361e6ed934436adb6bf40ea3bc/src/pip/_internal/models/scheme.py#L10
+DATA_FILES_SCHEME = "data"
 
 
 def parse_wheel_name(filename: str) -> tuple[str, str, str, str, str]:
@@ -72,39 +83,69 @@ class UnsupportedWheel(Exception):
     """Unsupported wheel."""
 
 
-def wheel_dist_info_dir(source: ZipFile, name: str) -> str:
-    """Returns the name of the contained .dist-info directory.
-
-    Raises UnsupportedWheel if not found, >1 found, or it doesn't match the
-    provided name.
+def find_wheel_metadata_dir(source: ZipFile, suffix: str) -> str | None:
     """
+    Returns the name of the contained metadata directory inside the wheel file.
+
+    Parameters
+    ----------
+    source
+        A ZipFile object representing the wheel file.
+
+    suffix
+        The suffix of the metadata directory. Usually ".dist-info" or ".data"
+
+    Returns
+    -------
+        The name of the metadata directory. If not found, returns None.
+    """
+
     # Zip file path separators must be /
     subdirs = {p.split("/", 1)[0] for p in source.namelist()}
 
-    info_dirs = [s for s in subdirs if s.endswith(".dist-info")]
+    info_dirs = [s for s in subdirs if s.endswith(suffix)]
 
     if not info_dirs:
-        raise UnsupportedWheel(f".dist-info directory not found in wheel {name!r}")
+        return None
 
-    if len(info_dirs) > 1:
-        raise UnsupportedWheel(
-            "multiple .dist-info directories found in wheel {!r}: {}".format(
-                name, ", ".join(info_dirs)
-            )
-        )
-
+    # Choose the first directory if there are multiple directories
     info_dir = info_dirs[0]
+    return info_dir
 
-    info_dir_name = canonicalize_name(info_dir)
-    canonical_name = canonicalize_name(name)
-    if not info_dir_name.startswith(canonical_name):
+
+def wheel_dist_info_dir(source: ZipFile, name: str) -> str:
+    """
+    Returns the name of the contained .dist-info directory.
+    """
+    dist_info_dir = find_wheel_metadata_dir(source, suffix=DIST_INFO_DIR_SUFFIX)
+    if dist_info_dir is None:
         raise UnsupportedWheel(
-            ".dist-info directory {!r} does not start with {!r}".format(
-                info_dir, canonical_name
-            )
+            f"{DIST_INFO_DIR_SUFFIX} directory not found in wheel {name!r}"
         )
 
-    return info_dir
+    dist_info_dir_name = canonicalize_name(dist_info_dir)
+    canonical_name = canonicalize_name(name)
+    if not dist_info_dir_name.startswith(canonical_name):
+        raise UnsupportedWheel(
+            f"{DIST_INFO_DIR_SUFFIX} directory {dist_info_dir!r} does not start with {canonical_name!r}"
+        )
+
+    return dist_info_dir
+
+
+def wheel_data_file_dir(source: ZipFile, name: str) -> str | None:
+    data_file_dir = find_wheel_metadata_dir(source, suffix=DATA_FILES_DIR_SUFFIX)
+
+    # data files are optional, so we return None if not found
+    if data_file_dir is None:
+        return None
+
+    data_file_dir_name = canonicalize_name(data_file_dir)
+    canonical_name = canonicalize_name(name)
+    if not data_file_dir_name.startswith(canonical_name):
+        return None
+
+    return data_file_dir
 
 
 def make_whlfile(
@@ -116,12 +157,15 @@ def make_whlfile(
 if IN_BROWSER:
     shutil.register_archive_format("whl", make_whlfile, description="Wheel file")
     shutil.register_unpack_format(
-        "whl", [".whl", ".wheel"], shutil._unpack_zipfile, description="Wheel file"  # type: ignore[attr-defined]
+        "whl",
+        [".whl", ".wheel"],
+        shutil._unpack_zipfile,  # type: ignore[attr-defined]
+        description="Wheel file",
     )
 
 
 def get_format(format: str) -> str:
-    for (fmt, extensions, _) in shutil.get_unpack_formats():
+    for fmt, extensions, _ in shutil.get_unpack_formats():
         if format == fmt:
             return fmt
         if format in extensions:
@@ -131,17 +175,26 @@ def get_format(format: str) -> str:
     raise ValueError(f"Unrecognized format {format}")
 
 
+def get_install_dir(target: Literal["site", "dynlib"] | None = None) -> str:
+    """
+    Get the installation directory for a target.
+    """
+    if not target:
+        return str(SITE_PACKAGES)
+
+    return str(TARGETS.get(target, SITE_PACKAGES))
+
+
 def unpack_buffer(
-    buffer: JsProxy,
+    buffer: JsBuffer,
     *,
     filename: str = "",
     format: str | None = None,
-    target: Literal["site", "lib", "dynlib"] | None = None,
     extract_dir: str | None = None,
     calculate_dynlibs: bool = False,
     installer: str | None = None,
     source: str | None = None,
-) -> JsProxy | None:
+) -> JsArray[str] | None:
     """Used to install a package either into sitepackages or into the standard
     library.
 
@@ -168,16 +221,9 @@ def unpack_buffer(
         3. If neither is present or the file name has no extension, we throw an
            error.
 
-
     extract_dir
         Controls which directory the file is unpacked into. Default is the
-        working directory. Mutually exclusive with target.
-
-    target
-        Controls which directory the file is unpacked into. Either "site" which
-        unpacked the file into the sitepackages directory or "lib" which
-        unpacked the file into the standard library. Mutually exclusive with
-        extract_dir.
+        working directory.
 
     calculate_dynlibs
         If true, will return a Javascript Array of paths to dynamic libraries
@@ -193,28 +239,27 @@ def unpack_buffer(
     """
     if format:
         format = get_format(format)
-    if target and extract_dir:
-        raise ValueError("Cannot provide both 'target' and 'extract_dir'")
     if not filename and format is None:
         raise ValueError("At least one of filename and format must be provided")
-    if target:
-        extract_path = TARGETS[target]
-    elif extract_dir:
-        extract_path = Path(extract_dir)
-    else:
-        extract_path = Path(".")
+
+    extract_path = Path(extract_dir or ".")
     filename = filename.rpartition("/")[-1]
+
+    extract_path.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile(suffix=filename) as f:
         buffer._into_file(f)
         shutil.unpack_archive(f.name, extract_path, format)
-        suffix = Path(filename).suffix
+
+        suffix = Path(f.name).suffix
         if suffix == ".whl":
-            set_wheel_installer(filename, f, extract_path, installer, source)
+            z = ZipFile(f)
+            set_wheel_installer(filename, z, extract_path, installer, source)
+            install_datafiles(filename, z, extract_path)
+
         if calculate_dynlibs:
-            suffix = Path(f.name).suffix
             return to_js(get_dynlibs(f, suffix, extract_path))
-        else:
-            return None
+
+    return None
 
 
 def should_load_dynlib(path: str | Path) -> bool:
@@ -241,7 +286,7 @@ def should_load_dynlib(path: str | Path) -> bool:
 
 def set_wheel_installer(
     filename: str,
-    archive: IO[bytes],
+    archive: ZipFile,
     target_dir: Path,
     installer: str | None,
     source: str | None,
@@ -265,7 +310,7 @@ def set_wheel_installer(
         The file name of the wheel.
 
     archive
-        A binary representation of a wheel archive
+        A ZipFile object representing the wheel file.
 
     target_dir
         The directory the wheel is being installed into. Probably site-packages.
@@ -277,14 +322,34 @@ def set_wheel_installer(
     source
         Where did the package come from? Either a url, `pyodide`, or `PyPI`.
     """
-    z = ZipFile(archive)
     wheel_name = parse_wheel_name(filename)[0]
-    dist_info_name = wheel_dist_info_dir(z, wheel_name)
+    dist_info_name = wheel_dist_info_dir(archive, wheel_name)
     dist_info = target_dir / dist_info_name
     if installer:
         (dist_info / "INSTALLER").write_text(installer)
     if source:
         (dist_info / "PYODIDE_SOURCE").write_text(source)
+
+
+def install_datafiles(
+    filename: str,
+    archive: ZipFile,
+    target_dir: Path,
+) -> None:
+    """
+    Install data files from a wheel into the target directory.
+    While data files are not standard in wheels, they are common in the wild and pip supports them.
+    """
+
+    wheel_name = parse_wheel_name(filename)[0]
+    data_file_dir_name = wheel_data_file_dir(archive, wheel_name)
+    if data_file_dir_name is None:
+        return
+
+    data_file_dir = target_dir / data_file_dir_name / DATA_FILES_SCHEME
+    if not data_file_dir.exists():
+        return
+    install_files(data_file_dir, sys.prefix)
 
 
 def get_dynlibs(archive: IO[bytes], suffix: str, target_dir: Path) -> list[str]:
@@ -305,6 +370,8 @@ def get_dynlibs(archive: IO[bytes], suffix: str, target_dir: Path) -> list[str]:
         The list of paths to dynamic libraries ('.so' files) that were in the archive,
         but adjusted to point to their unpacked locations.
     """
+    import tarfile
+
     dynlib_paths_iter: Iterable[str]
     if suffix in ZIP_TYPES:
         dynlib_paths_iter = ZipFile(archive).namelist()
@@ -320,27 +387,37 @@ def get_dynlibs(archive: IO[bytes], suffix: str, target_dir: Path) -> list[str]:
     ]
 
 
-def get_dist_source(dist: Distribution) -> str:
-    """Get a description of the source of a package.
+def get_dist_source(dist_path: Path) -> tuple[str, str]:
+    """Get the package name and a description of the source of a package.
 
     This is used in loadPackage to explain where the package came from. Purely
     for informative purposes.
     """
-    source = dist.read_text("PYODIDE_SOURCE")
-    if source == "pyodide":
-        return "default channel"
-    if source:
-        return source
-    direct_url = dist.read_text("direct_url.json")
-    if direct_url:
+    with (dist_path / "METADATA").open() as f:
+        for line in f:
+            if line.startswith("Name:"):
+                dist_name = line[5:].strip()
+                break
+        else:
+            raise ValueError(f"Package name not found in {dist_path.name} METADATA")
+
+    source_path = dist_path / "PYODIDE_SOURCE"
+    if source_path.exists():
+        source = source_path.read_text().strip()
+        if source == "pyodide":
+            return dist_name, "default channel"
+        elif source:
+            return dist_name, source
+    direct_url_path = dist_path / "direct_url.json"
+    if direct_url_path.exists():
         import json
 
-        return json.loads(direct_url)["url"]
-    installer = dist.read_text("INSTALLER")
-    if installer:
-        installer = installer.strip()
-        return f"{installer} (index unknown)"
-    return "Unknown"
+        return dist_name, json.loads(direct_url_path.read_text())["url"]
+    installer_path = dist_path / "INSTALLER"
+    if installer_path.exists():
+        installer = installer_path.read_text().strip()
+        return dist_name, f"{installer} (index unknown)"
+    return dist_name, "Unknown"
 
 
 def init_loaded_packages() -> None:
@@ -350,25 +427,6 @@ def init_loaded_packages() -> None:
     This ensures that `pyodide.loadPackage` knows that they are around and
     doesn't install over them.
     """
-    for dist in importlib_distributions():
-        setattr(loadedPackages, dist.name, get_dist_source(dist))
-
-
-def sub_resource_hash(sha_256: str) -> str:
-    """Calculates the sub resource integrity hash given a SHA-256
-
-    Parameters
-    ----------
-    sha_256
-        A hexdigest of the SHA-256 sum.
-
-    Returns
-    -------
-        The sub resource integrity hash corresponding to the sum.
-
-    >>> sha_256 = 'c0dc86efda0060d4084098a90ec92b3d4aa89d7f7e0fba5424561d21451e1758'
-    >>> sub_resource_hash(sha_256)
-    'sha256-wNyG79oAYNQIQJipDskrPUqonX9+D7pUJFYdIUUeF1g='
-    """
-    binary_digest = binascii.unhexlify(sha_256)
-    return "sha256-" + base64.b64encode(binary_digest).decode()
+    for dist_path in SITE_PACKAGES.glob("*.dist-info"):
+        dist_name, dist_source = get_dist_source(dist_path)
+        setattr(loadedPackages, dist_name, dist_source)

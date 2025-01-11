@@ -2,7 +2,9 @@ import pytest
 from pytest_pyodide import run_in_pyodide
 
 solvers = [
-    "cadical",
+    "cadical103",
+    "cadical153",
+    "cadical195",
     "gluecard30",
     "gluecard41",
     "glucose30",
@@ -20,7 +22,6 @@ solvers = [
 @pytest.mark.parametrize("name", solvers)
 @run_in_pyodide(packages=["python-sat"])
 def test_solvers(selenium, name):
-
     from pysat.formula import CNF
     from pysat.solvers import Solver
 

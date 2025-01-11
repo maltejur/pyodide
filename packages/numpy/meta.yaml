@@ -1,29 +1,36 @@
 package:
   name: numpy
-  version: 1.23.0
+  version: 2.0.2
+  tag:
+    - min-scipy-stack
   top-level:
     - numpy
 source:
-  url: https://files.pythonhosted.org/packages/f6/d8/ab692a75f584d13c6542c3994f75def5bce52ded9399f52e230fe402819d/numpy-1.22.4.zip
-  sha256: 425b390e4619f58d8526b3dcf656dde069133ae5c240229821f01b5f44ea07af
-
-  patches:
-    - patches/0001-ENH-Add-support-for-platforms-with-missing-fenv-flag.patch
-    - patches/0002-ENH-cross-compilation-use-sysconfig-to-determine-if-.patch
-    - patches/0003-ENH-Fix-pointer-size-determination-for-cross-build.patch
+  url: https://files.pythonhosted.org/packages/a9/75/10dd1f8116a8b796cb2c737b674e02d02e80454bda953fa7e65d8c12b016/numpy-2.0.2.tar.gz
+  sha256: 883c987dee1880e2a864ab0dc9892292582510604156762362d9326444636e78
 
 build:
-  backend-flags: --disable-optimization
+  # numpy uses vendored meson, so we need to pass the cross file manually
+  backend-flags: |
+    setup-args=-Dallow-noblas=true
+    setup-args=--cross-file=${MESON_CROSS_FILE}
+  # numpy creates numpy/distutils/__pycache__ directory during the build.
+  # It breaks our test because there is a .pyc in the directory.
+  post: |
+    rm -rf numpy/distutils/__pycache__
   cflags: |
     -Wno-return-type
   cross-build-env: true
   cross-build-files:
-    - numpy/core/include/numpy/numpyconfig.h
-    - numpy/core/include/numpy/_numpyconfig.h
-    - numpy/core/lib/libnpymath.a
+    - numpy/_core/include/numpy/numpyconfig.h
+    - numpy/_core/include/numpy/_numpyconfig.h
+    - numpy/_core/lib/libnpymath.a
     - numpy/random/lib/libnpyrandom.a
 about:
   home: https://www.numpy.org
   PyPI: https://pypi.org/project/numpy
   summary: NumPy is the fundamental package for array computing with Python.
-  license: BSD
+  license: BSD-3-Clause
+extra:
+  recipe-maintainers:
+    - agriyakhetarpal
