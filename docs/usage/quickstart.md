@@ -4,11 +4,14 @@
 
 ## Try it online
 
-Try Pyodide in a [REPL](https://pyodide.org/en/latest/console.html) directly in your browser (no installation needed).
+Try Pyodide in a [REPL](../console.html){.external} directly in your browser
+(no installation needed).
 
 ## Setup
 
-To include Pyodide in your project you can use the following CDN URL:
+There is a [complete example](complete-example) that you can copy & paste
+into an html file below. To include Pyodide in your project you can use the
+following CDN URL:
 
 ```text
 {{PYODIDE_CDN_URL}}pyodide.js
@@ -19,7 +22,7 @@ releases](https://github.com/pyodide/pyodide/releases) or build Pyodide
 yourself. See {ref}`downloading_deploying` for more details.
 
 The `pyodide.js` file defines a single async function called
-{any}`loadPyodide <globalThis.loadPyodide>` which sets up the Python environment
+{js:func}`~globalThis.loadPyodide` which sets up the Python environment
 and returns {js:mod}`the Pyodide top level namespace <pyodide>`.
 
 ```pyodide
@@ -36,7 +39,7 @@ main();
 
 ## Running Python code
 
-Python code is run using the {any}`pyodide.runPython` function. It takes as
+Python code is run using the {js:func}`pyodide.runPython` function. It takes as
 input a string of Python code. If the code ends in an expression, it returns the
 result of the expression, translated to JavaScript objects (see
 {ref}`type-translations`). For example the following code will return the
@@ -51,6 +54,8 @@ pyodide.runPython(`
 
 After importing Pyodide, only packages from the standard library are available.
 See {ref}`loading_packages` for information about loading additional packages.
+
+(complete-example)=
 
 ## Complete example
 
@@ -135,29 +140,23 @@ Create and save a test `index.html` page with the following contents:
 ## Accessing Python scope from JavaScript
 
 All functions and variables defined in the Python global scope are accessible
-via the {any}`pyodide.globals` object.
+via the {js:attr}`pyodide.globals` object.
 
-For example, if you run the code `x = numpy.ones([3,3])` in Python global scope,
+For example, if you run the code `x = [3, 4]` in Python global scope,
 you can access the global variable `x` from JavaScript in your browser's
 developer console with `pyodide.globals.get("x")`. The same goes for functions
 and imports. See {ref}`type-translations` for more details.
 
-You can try it yourself in the browser console. Go to
-
-```text
-{{PYODIDE_CDN_URL}}console.html
-```
-
-and type the following into the browser console:
+You can try it yourself in the browser console. Go to the [Pyodide REPL
+URL](../console.html){.external} and type the following into the browser
+console:
 
 ```pyodide
-await pyodide.loadPackage("numpy");
 pyodide.runPython(`
-  import numpy
-  x=numpy.ones((3, 4))
+  x = [3, 4]
 `);
 pyodide.globals.get('x').toJs();
-// >>> [ Float64Array(4), Float64Array(4), Float64Array(4) ]
+// >>> [ 3, 4 ]
 ```
 
 You can assign new values to Python global variables or create new ones from

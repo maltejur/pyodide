@@ -1,12 +1,15 @@
 package:
   name: pytest
-  version: 7.1.2
+  version: 8.1.1
+  tag:
+    - core
+    - min-scipy-stack
   top-level:
     - _pytest
     - pytest
 source:
-  url: https://files.pythonhosted.org/packages/fb/d0/bae533985f2338c5d02184b4a7083b819f6b3fc101da792e0d96e6e5299d/pytest-7.1.2-py3-none-any.whl
-  sha256: 13d0e3ccfc2b6e26be000cb6568c832ba67ba32e719443bfe725814d3c42433c
+  url: https://files.pythonhosted.org/packages/4d/7e/c79cecfdb6aa85c6c2e3cf63afc56d0f165f24f5c66c03c695c4d9b84756/pytest-8.1.1-py3-none-any.whl
+  sha256: 2a8386cfc11fa9d2c50ee7b2a57e7d898ef90470a7a34c4b949ff59662bb78b7
 requirements:
   run:
     - atomicwrites
@@ -17,6 +20,7 @@ requirements:
     - setuptools
     - six
     - iniconfig
+    - exceptiongroup
 about:
   home: https://docs.pytest.org/en/latest/
   PyPI: https://pypi.org/project/pytest

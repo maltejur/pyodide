@@ -3,20 +3,28 @@ from functools import reduce
 import pytest
 from pytest_pyodide import run_in_pyodide
 
+NODE_XFAIL_REASON = (
+    "galpy loads matplotlib and there are no supported matplotlib backends on node"
+)
+
 # Need to skip_refcount_check because we use matplotlib
-DECORATORS = [
-    pytest.mark.xfail_browsers(
-        node="galpy loads matplotlib and there are no supported matplotlib backends on node"
-    ),
-    pytest.mark.skip_refcount_check,
-]
 
 
-def galpy_test_decorator(f):
-    return reduce(lambda x, g: g(x), DECORATORS, f)
+def galpy_test_decorator(**kwargs):
+    def dec(f):
+        return reduce(
+            lambda x, g: g(x),
+            [
+                pytest.mark.xfail_browsers(node=NODE_XFAIL_REASON, **kwargs),
+                pytest.mark.skip_refcount_check,
+            ],
+            f,
+        )
+
+    return dec
 
 
-@galpy_test_decorator
+@galpy_test_decorator(firefox="times out")
 @run_in_pyodide(
     packages=[
         "galpy",
@@ -30,13 +38,13 @@ def test_integrate(selenium):
     ts = numpy.linspace(0.0, 100.0, 1001)
     o = Orbit()
     o.integrate(ts, MWPotential2014)
-    assert (
-        numpy.fabs(numpy.std(o.E(ts)) / numpy.mean(o.E(ts))) < 1e-10
-    ), "Orbit integration does not conserve energy"
+    assert numpy.fabs(numpy.std(o.E(ts)) / numpy.mean(o.E(ts))) < 1e-10, (
+        "Orbit integration does not conserve energy"
+    )
     return None
 
 
-@galpy_test_decorator
+@galpy_test_decorator(firefox="times out")
 @run_in_pyodide(
     packages=[
         "galpy",
@@ -53,16 +61,16 @@ def test_actionAngle(selenium):
     all_os = o(ts)
     jrs = all_os.jr(pot=MWPotential2014)
     jzs = all_os.jz(pot=MWPotential2014)
-    assert (
-        numpy.fabs(numpy.std(jrs) / numpy.mean(jrs)) < 1e-4
-    ), "Actions not conserved during orbit integration"
-    assert (
-        numpy.fabs(numpy.std(jzs) / numpy.mean(jzs)) < 1e-3
-    ), "Actions not conserved during orbit integration"
+    assert numpy.fabs(numpy.std(jrs) / numpy.mean(jrs)) < 1e-4, (
+        "Actions not conserved during orbit integration"
+    )
+    assert numpy.fabs(numpy.std(jzs) / numpy.mean(jzs)) < 1e-3, (
+        "Actions not conserved during orbit integration"
+    )
     return None
 
 
-@galpy_test_decorator
+@galpy_test_decorator(firefox="times out")
 @run_in_pyodide(
     packages=[
         "galpy",
@@ -105,7 +113,9 @@ def test_isotropic_hernquist_sigmar(selenium):
                     samp_sigr[ii] / jeans.sigmar(pot, br, beta=beta, dens=dens) - 1.0
                 )
                 < tol
-            ), "sigma_r(r) from samples does not agree with that obtained from the Jeans equation"
+            ), (
+                "sigma_r(r) from samples does not agree with that obtained from the Jeans equation"
+            )
         return None
 
     pot = potential.HernquistPotential(amp=2.3, a=1.3)

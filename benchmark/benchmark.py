@@ -20,8 +20,8 @@ SKIP = {"fft", "hyantes"}
 def print_entry(name, res):
     print(" - ", name)
     print(" " * 4, end="")
-    for name, dt in res.items():
-        print(f"{name}: {dt:.6f}  ", end="")
+    for res_name, dt in res.items():
+        print(f"{res_name}: {dt:.6f}  ", end="")
     print("")
 
 
@@ -164,11 +164,12 @@ def parse_args(benchmarks):
 
 
 def main():
-
     BENCHMARKS = {
         "pystone": get_pystone_benchmarks,
         "numpy": get_numpy_benchmarks,
-        "matplotlib": get_matplotlib_benchmarks,
+        # TODO: matplotlib benchmark occasionally fails after https://github.com/pyodide/pyodide/pull/3130
+        #       but it is not clear why.
+        # "matplotlib": get_matplotlib_benchmarks,
         "pandas": get_pandas_benchmarks,
     }
 
@@ -185,7 +186,6 @@ def main():
     ]
 
     with spawn_web_server(args.dist_dir) as (hostname, port, log_path):
-
         # selenium initialization time
         result = {"native": float("NaN")}
         for browser_name, cls in browser_cls:

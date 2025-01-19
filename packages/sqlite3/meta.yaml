@@ -1,20 +1,22 @@
 package:
   name: sqlite3
   version: 1.0.0 # Nonsense
-  _cpython_dynlib: true
+  tag:
+    - always
   top-level:
     - sqlite3
+    - _sqlite3
 source:
-  path: empty
+  path: src
 build:
-  sharedlibrary: true
+  type: cpython_module
   script: |
-    mkdir dist
-    export DISTDIR=$(pwd)/dist
-    cd $CPYTHONBUILD
+    wget ${PYTHON_ARCHIVE_URL} -O Python-${PYVERSION}.tgz
+    tar -xf Python-${PYVERSION}.tgz
+    cd Python-${PYVERSION}
 
     export FILES=(
-      "Modules/_sqlite/cache.c"
+      "Modules/_sqlite/blob.c"
       "Modules/_sqlite/connection.c"
       "Modules/_sqlite/cursor.c"
       "Modules/_sqlite/microprotocols.c"
@@ -25,7 +27,7 @@ build:
       "Modules/_sqlite/util.c"
     )
 
-    embuilder build --pic sqlite3
+    embuilder build sqlite3 --pic
 
     for file in "${FILES[@]}"; do
       emcc $STDLIB_MODULE_CFLAGS -c "${file}" -o "${file/.c/.o}"  \
@@ -33,7 +35,9 @@ build:
     done
 
     OBJECT_FILES=$(find Modules/_sqlite/ -name "*.o")
-    emcc $OBJECT_FILES -o $DISTDIR/_sqlite3.so $SIDE_MODULE_LDFLAGS \
+    emcc $OBJECT_FILES -o ${PKG_BUILD_DIR}/_sqlite3.so $SIDE_MODULE_LDFLAGS \
        -sUSE_SQLITE3 -lsqlite3
 
-    cd Lib && tar --exclude=test -cf - sqlite3 | tar -C $DISTDIR -xf -
+    cd Lib && tar --exclude=test -cf - sqlite3 | tar -C ${PKG_BUILD_DIR} -xf -
+about:
+  license: PSF

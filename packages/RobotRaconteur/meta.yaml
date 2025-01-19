@@ -1,16 +1,17 @@
 package:
   name: RobotRaconteur
-  version: 0.15.1
+  version: 1.2.2
 
 source:
-  url: https://github.com/robotraconteur/robotraconteur_pyodide/releases/download/v0.15.1-pyodide/RobotRaconteur-pyodide-0.15.1-post1-Source.tar.gz
-  sha256: 224427d0922dcb34d17221c1f3b8b5e94ebddc109f24f8e9a3f7f5d090386dc6
+  url: https://github.com/robotraconteur/robotraconteur/releases/download/v1.2.2/RobotRaconteur-1.2.2-Source.tar.gz
+  sha256: "837710102b5ee6ad81a22e14b313b1dd09995c3da3e7846355866553b3c52715"
 
 requirements:
   run:
     - numpy
   host:
     - boost-cpp
+    - openssl
     - numpy
 
 build:
@@ -20,36 +21,46 @@ build:
     export INSTALL_DIR=${WASM_LIBRARY_DIR}
 
     echo "set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS FALSE)" > ForceStaticLib.cmake
-    emcmake cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DBUILD_PYTHON=ON \
+    emcmake cmake -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DBUILD_GEN=OFF -DBUILD_TESTING=OFF -DBUILD_PYTHON3=ON \
     -DCMAKE_PROJECT_INCLUDE=ForceStaticLib.cmake \
-    -DNUMPY_INCLUDE_DIR=$HOSTINSTALLDIR/lib/python$PYMAJOR.$PYMINOR/site-packages/numpy/core/include/ \
-    -DPYTHON_INCLUDE_DIR=$PYTHONINCLUDE -DPYTHON_EXECUTABLE=python$PYMAJOR.$PYMINOR \
+    -DNUMPY_INCLUDE_DIR=$HOSTINSTALLDIR/lib/python$PYMAJOR.$PYMINOR/site-packages/numpy/_core/include/ \
+    -DPYTHON3_INCLUDE_DIR=$PYTHONINCLUDE -DPYTHON3_EXECUTABLE=python$PYMAJOR.$PYMINOR \
+    -DPYTHON3_LIBRARY=$HOSTINSTALLDIR/lib/python$PYMAJOR.$PYMINOR.a \
     -DCMAKE_CXX_FLAGS="-fPIC -fexceptions -DBOOST_AP_DISABLE_THREADS=1 -O2 -DBOOST_BIND_GLOBAL_PLACEHOLDERS=1 -Wno-enum-constexpr-conversion" \
-    -DBOOST_INCLUDEDIR=$WASM_LIBRARY_DIR/include -DBOOST_LIBRARYDIR=$WASM_LIBRARY_DIR/lib \
-    -DBoost_DATE_TIME_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_date_time.bc \
-    -DBoost_DATE_TIME_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_date_time.bc \
-    -DBoost_FILESYSTEM_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_filesystem.bc \
-    -DBoost_FILESYSTEM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_filesystem.bc \
-    -DBoost_SYSTEM_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_system.bc \
-    -DBoost_SYSTEM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_system.bc \
-    -DBoost_REGEX_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_regex.bc \
-    -DBoost_SYSTEM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_regex.bc \
-    -DBoost_CHRONO_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_chrono.bc \
-    -DBoost_CHRONO_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_crono.bc \
-    -DBoost_RANDOM_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_random.bc \
-    -DBoost_RANDOM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_random.bc \
-    -DBoost_PROGRAM_OPTIONS_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_program_options.bc \
-    -DBoost_PROGRAM_OPTIONS_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_program_options.bc \
+    -DBoost_INCLUDE_DIR=$WASM_LIBRARY_DIR/include -DBoost_LIBRARY_DIR=$WASM_LIBRARY_DIR/lib \
+    -DBoost_DATE_TIME_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_date_time.a \
+    -DBoost_DATE_TIME_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_date_time.a \
+    -DBoost_FILESYSTEM_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_filesystem.a \
+    -DBoost_FILESYSTEM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_filesystem.a \
+    -DBoost_SYSTEM_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_system.a \
+    -DBoost_SYSTEM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_system.a \
+    -DBoost_REGEX_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_regex.a \
+    -DBoost_SYSTEM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_regex.a \
+    -DBoost_CHRONO_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_chrono.a \
+    -DBoost_CHRONO_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_crono.a \
+    -DBoost_RANDOM_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_random.a \
+    -DBoost_RANDOM_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_random.a \
+    -DBoost_PROGRAM_OPTIONS_LIBRARY_RELEASE=$WASM_LIBRARY_DIR/lib/libboost_program_options.a \
+    -DBoost_PROGRAM_OPTIONS_LIBRARY_DEBUG=$WASM_LIBRARY_DIR/lib/libboost_program_options.a \
+    -DOpenSSL_CRYPTO_LIBRARY=$WASM_LIBRARY_DIR/lib/libcrypto.a \
+    -DOpenSSL_INCLUDE_DIR=$WASM_LIBRARY_DIR/include \
+    -DOpenSSL_USE_STATIC_LIBS=ON \
     -DUSE_PREGENERATED_SOURCE=ON \
      .
     emmake make -j ${PYODIDE_JOBS:-3}
     emcc ${SIDE_MODULE_LDFLAGS} -fexceptions out/lib/libRobotRaconteurCore.a \
-      out/Python/RobotRaconteur/_RobotRaconteurPython.a \
-      $WASM_LIBRARY_DIR/lib/libboost_chrono.bc \
-      $WASM_LIBRARY_DIR/lib/libboost_date_time.bc \
-      $WASM_LIBRARY_DIR/lib/libboost_filesystem.bc \
-      $WASM_LIBRARY_DIR/lib/libboost_program_options.bc \
-      $WASM_LIBRARY_DIR/lib/libboost_random.bc \
-      $WASM_LIBRARY_DIR/lib/libboost_regex.bc \
-      $WASM_LIBRARY_DIR/lib/libboost_system.bc \
-      -o out/Python/RobotRaconteur/_RobotRaconteurPython.so
+      out/Python3/RobotRaconteur/_RobotRaconteurPython.a \
+      $WASM_LIBRARY_DIR/lib/libboost_chrono.a \
+      $WASM_LIBRARY_DIR/lib/libboost_date_time.a \
+      $WASM_LIBRARY_DIR/lib/libboost_filesystem.a \
+      $WASM_LIBRARY_DIR/lib/libboost_program_options.a \
+      $WASM_LIBRARY_DIR/lib/libboost_random.a \
+      $WASM_LIBRARY_DIR/lib/libboost_regex.a \
+      $WASM_LIBRARY_DIR/lib/libboost_system.a \
+      -o out/Python3/RobotRaconteur/_RobotRaconteurPython.so
+about:
+  home: https://github.com/robotraconteur/robotraconteur
+  license: Apache-2.0
+extra:
+  recipe-maintainers:
+    - johnwason

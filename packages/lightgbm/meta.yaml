@@ -1,12 +1,18 @@
 package:
   name: lightgbm
-  version: 3.3.2
+  version: 4.5.0
 source:
-  url: https://files.pythonhosted.org/packages/8f/51/d272fa065be3be615d279be915705fa3824b86155e36c974cfb8d3ceec1e/lightgbm-3.3.2.tar.gz
-  sha256: 5d25d16e77c844c297ece2044df57651139bc3c8ad8c4108916374267ac68b64
+  url: https://files.pythonhosted.org/packages/4d/e6/41be1f8642257e21b4170e798c9a84e4268656ebfa3019586d82bfd281c9/lightgbm-4.5.0.tar.gz
+  sha256: e1cd7baf0318d4e308a26575a63a4635f08df866ad3622a9d8e3d71d9637a1ba
 build:
-  backend-flags: "--build-option=--nomp"
-  exports: "whole_archive"
+  # skbuild.cmake.verbose should be switched to skbuild.build.verbose when
+  # upgrading to lightgbm>4.5.0 (the first release to set a minimum of scikit-build-core>=0.10)
+  backend-flags: |
+    skbuild.cmake.define.USE_OPENMP=OFF
+    skbuild.cmake.verbose=true
+  exports: requested
+  script: |
+    export CMAKE_GENERATOR="Unix Makefiles"
 requirements:
   run:
     - numpy
@@ -19,4 +25,7 @@ about:
   home: https://github.com/microsoft/LightGBM
   PyPI: https://pypi.org/project/lightgbm
   summary: LightGBM Python Package
-  license: The MIT License (Microsoft)
+  license: MIT
+extra:
+  recipe-maintainers:
+    - jameslamb

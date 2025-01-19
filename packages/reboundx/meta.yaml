@@ -1,6 +1,6 @@
 package:
   name: reboundx
-  version: 3.7.1
+  version: 4.3.0
   top-level:
     - reboundx
 build:
@@ -10,8 +10,8 @@ build:
   ldflags: |
     -L$(WASM_LIBRARY_DIR)/lib/
 source:
-  url: https://files.pythonhosted.org/packages/05/a5/b5a54362d72c9d0d747373df6fba77638713fc88ca7e54f35ffe06c4a178/reboundx-3.7.1.tar.gz
-  sha256: 13045b582bc0316dc0d48fe5826db1062aba121abcf84bac82e93f0d1c367a97
+  url: https://files.pythonhosted.org/packages/2c/c2/32bb671c3f6944755b90c75d20f387daf4b9fc1e6919264cb0e9e26af8d7/reboundx-4.3.0.tar.gz
+  sha256: 94fc5b0993b623faa9964800f87fbc97236f7f12cb639c659d25702f1e0ac0ec
 requirements:
   run:
     - rebound
@@ -22,4 +22,7 @@ about:
   home: https://github.com/dtamayo/reboundx
   PyPI: https://pypi.org/project/reboundx
   summary: A library for including additional forces in REBOUND
-  license: GPL
+  license: GPL-3.0
+extra:
+  recipe-maintainers:
+    - hannorein

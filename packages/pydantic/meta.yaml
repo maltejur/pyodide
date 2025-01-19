@@ -1,14 +1,16 @@
 package:
   name: pydantic
-  version: 1.9.1
+  version: 2.9.2
   top-level:
     - pydantic
 source:
-  sha256: 1ed987c3ff29fff7fd8c3ea3a3ea877ad310aae2ef9889a119e22d3f2db0691a
-  url: https://files.pythonhosted.org/packages/d0/a5/e4a25a0becf35530a3d90459a88855743e942f2e502da49ca5b10aa78568/pydantic-1.9.1.tar.gz
+  sha256: d155cef71265d1e9807ed1c32b4c8deec042a44a50a4188b25ac67ecd81a9c0f
+  url: https://files.pythonhosted.org/packages/a9/b7/d9e3f12af310e1120c21603644a1cd86f59060e040ec5c3a80b8f05fae30/pydantic-2.9.2.tar.gz
 requirements:
   run:
     - typing-extensions
+    - pydantic_core
+    - annotated-types
 about:
   home: https://github.com/samuelcolvin/pydantic
   PyPI: https://pypi.org/project/pydantic
